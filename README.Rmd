@@ -13,500 +13,85 @@ knitr::opts_chunk$set(
 )
 ```
 
-# ggfips *is experimental* 🤩
+# ggfips
 
-... and most of the development work lives right here in the README. 
-
-
-
-<!-- badges: start -->
-<!-- badges: end -->
-
-The goal of ggfips is to provide an interface where you can quickly build a map with a simple dataframe with fips codes and variables with characteristics.  geom_sf_fips brings the fips polygons (geometry vector) that you'll need to create maps based county and characteristics.
-
-It uses Claus Wilke's fips geometries.  
-
-
-# The status quo
-
-```{r}
-library(tidyverse)
-library(sf)
-#> Linking to GEOS 3.8.1, GDAL 3.2.1, PROJ 7.2.1
-
-fips_geometries <- readRDS(url("https://wilkelab.org/SDS375/datasets/US_counties.rds")) %>%
-  rename(FIPS = GEOID) %>% 
-  janitor::clean_names()
-
-US_census <- read_csv("https://wilkelab.org/SDS375/datasets/US_census.csv",
-                      col_types = cols(FIPS = "c")
-          ) %>% 
-  janitor::clean_names()
-
-# from Claus Wilke on ggplot2
-fips_geometries %>%
-  left_join(US_census, by = "fips") %>%
-  ggplot() +
-  geom_sf(aes(fill = mean_work_travel, 
-              fips = fips), # a bug or a feature?
-          linewidth = .1) + 
-  scale_fill_viridis_c(option = "magma") ->
-classic_plot_sf_layer
-
-classic_plot_sf_layer
-```
 
 
 
 ```{r}
-layer_data(classic_plot_sf_layer) %>% 
-  select(fips, geometry, xmin, xmax, ymin, ymax) ->
-reference_fips
+library(tidyverse)
+library(ggfips)
 
-reference_fips %>% 
-  left_join(fips_geometries) ->
-reference_fips_full
-
-
-save(reference_fips, file = "data/reference_fips.rda")
-```
-
-
-
-```{r}
-compute_county <- function(data, scales){
- 
-  data %>% 
-    # inner_join(fips_ggplot2_reference, multiple = "all") 
-    inner_join(reference_fips) %>% 
-    mutate(group = -1)
-
-}
-
-
-```
-
-
-# Step 2: pass to ggproto
-
-```{r}
-StatCounty <- ggplot2::ggproto(`_class` = "StatCounty",
-                                  `_inherit` = ggplot2::Stat,
-                                  # required_aes = c("fips"), #breaks when required!?
-                                  # setup_data = my_setup_data,
-                                  compute_panel = compute_county,
-                                  default_aes = aes(geometry = after_stat(geometry))
-                                  )
-```
-
-
-# Step 3: write geom_* function
-
-```{r}
-geom_sf_county <- function(
-  mapping = NULL,
-  data = NULL,
-  position = "identity",
-  na.rm = FALSE,
-  show.legend = NA,
-  inherit.aes = TRUE, ...) {
-  ggplot2::layer(
-    stat = StatCounty,  # proto object from step 2
-    geom = ggplot2::GeomSf,  # inherit other behavior
-    data = data,
-    mapping = mapping,
-    position = position,
-    show.legend = show.legend,
-    inherit.aes = inherit.aes,
-    params = list(na.rm = na.rm, ...)
-  )
-}
-```
-
-# step 4: test geom_* function, celebrate!
-
-```{r, eval = T}
-us_census <- read_csv("https://wilkelab.org/SDS375/datasets/US_census.csv",
-                      col_types = cols(FIPS = "c")
-          )  
-
-head(us_census)
-
-stamp_sf_county_usa <- function(fill = "darkgrey"){
-  
-  
-  geom_sf_county(data = reference_fips %>% 
-                   select(fips), 
-                 fill = fill, 
-                 aes(fips = fips))
-  
-}
 
 us_census %>% 
-  ggplot() + 
-  aes(fips = FIPS) +
-  stamp_sf_county_usa() +
-  geom_sf_county(linewidth = .02, 
-                      color = "darkgrey") +
-  aes(fill = mean_work_travel) + 
+ggplot() +
   coord_sf() +
+  aes(fips = fips) +
+  aes(fill = mean_work_travel) +
+  geom_sf_county() +
   scale_fill_viridis_c(option = "magma")
 ```
 
 
----
-
-
-# Spotlighting
-
-## can we make ggfips go further? Prototyping w/ Texas
+# spotlighting
 
 ```{r}
-stamp_sf_county_texas <- function(fill = "darkgrey"){
-  
-  
-  geom_sf_county(data = fips_geometries %>% filter(name_2 == "Texas") %>% 
-                   select(fips = fips), 
-                 fill = fill, 
-                 aes(fips = fips))
-  
-}
-
-  
-reference_fips_full %>% filter(name_2 == "Texas") %>% 
-    select(fips, geometry, xmin,xmax, ymin, ymax) ->
-reference_fips_texas
-
-compute_county_texas <- function(data, scales){
- 
-  data %>% 
-    inner_join(reference_fips_texas) %>% 
-    mutate(group = -1)
-
-}
-
-
-StatCountytexas <- ggplot2::ggproto(`_class` = "StatCountytexas",
-                                  `_inherit` = ggplot2::Stat,
-                                  # required_aes = c("fips"), #breaks when required!?
-                                  # setup_data = my_setup_data,
-                                  compute_panel = compute_county_texas,
-                                  default_aes = aes(geometry = after_stat(geometry))
-                                  )
-
-
-
-
-geom_sf_county_texas <- function(
-  mapping = NULL,
-  data = NULL,
-  position = "identity",
-  na.rm = FALSE,
-  show.legend = NA,
-  inherit.aes = TRUE, ...) {
-  ggplot2::layer(
-    stat = StatCountytexas,  # proto object from step 2
-    geom = ggplot2::GeomSf,  # inherit other behavior
-    data = data,
-    mapping = mapping,
-    position = position,
-    show.legend = show.legend,
-    inherit.aes = inherit.aes,
-    params = list(na.rm = na.rm, ...)
-  )
-}
-
-
-stamp_sf_county_texas_gillespie <- function(fill = alpha("red", .3), 
-                                            color = "red",
-                                            alpha = .2, linewidth = 1){
-  
-  
-  geom_sf_county(data = fips_geometries %>% filter(name_2 == "Texas") %>%
-                   filter(name == "Gillespie") %>% 
-                   select(fips = fips), 
-                 fill = fill, color = color, alpha = alpha, linewidth = linewidth,
-                 aes(fips = fips))
-  
-}
-
-
-
 us_census %>% 
-  ggplot() + 
+ggplot() +
   coord_sf() +
-  aes(fips = FIPS) +
-  stamp_sf_county_texas() +
-  geom_sf_county_texas() +
-  stamp_sf_county_texas_gillespie(alpha = 0, color = "green") +
-  aes(fill = mean_work_travel) + 
-  scale_fill_viridis_c(option = "magma")
-
-```
-
-
-
----
-
-# Generalize W colorado
-
-I thought about providing convenience functions for every single county but that seemed like too much!  
-
-```{r}
-stamp_sf_county_state <- function(fill = "darkgrey", state = "Colorado"){
-  
-  state %>% tolower() -> state
-  
-  geom_sf_county(data = fips_geometries %>% 
-                   mutate(name_2 = tolower(name_2)) %>% 
-                   filter(name_2 == state) %>% 
-                   select(fips = fips), 
-                 fill = fill, 
-                 aes(fips = fips))
-  
-}
-
-  
-
-
-compute_county_state <- function(data, scales, state = "Colorado"){
- 
-    state %>% tolower() -> state
-
-  
-  reference_fips_full %>% 
-                   mutate(name_2 = tolower(name_2)) %>% 
-                   filter(name_2 == state) %>% 
-    select(fips, geometry, xmin,xmax, ymin, ymax) ->
-reference_fips_state
-  
-  data %>% 
-    inner_join(reference_fips_state) %>% 
-    mutate(group = -1)
-
-}
-
-
-StatCountystate <- ggplot2::ggproto(`_class` = "StatCountystate",
-                                  `_inherit` = ggplot2::Stat,
-                                  # required_aes = c("fips"), #breaks when required!?
-                                  # setup_data = my_setup_data,
-                                  compute_panel = compute_county_state,
-                                  default_aes = aes(geometry = after_stat(geometry))
-                                  )
-
-
-
-
-geom_sf_county_state <- function(
-  mapping = NULL,
-  data = NULL,
-  position = "identity",
-  na.rm = FALSE,
-  show.legend = NA,
-  inherit.aes = TRUE, ...) {
-  ggplot2::layer(
-    stat = StatCountystate,  # proto object from step 2
-    geom = ggplot2::GeomSf,  # inherit other behavior
-    data = data,
-    mapping = mapping,
-    position = position,
-    show.legend = show.legend,
-    inherit.aes = inherit.aes,
-    params = list(na.rm = na.rm, ...)
-  )
-}
-
-
-stamp_sf_county_state_county <- function(state = "Colorado",
-                                         county = "Arapahoe",
-                                         fill = alpha("red", .3),
-                                            color = "red",
-                                            alpha = .2, linewidth = 1){
-
-      state %>% tolower() -> state
-    county %>% tolower() -> county
-
-
-  geom_sf_county(data = fips_geometries %>% 
-                   mutate(name_2 = tolower(name_2)) %>% 
-                   filter(name_2 == state) %>%
-                   mutate(name = tolower(name)) %>% 
-                   filter(name == county) %>%
-                   select(fips = fips),
-                 fill = fill, color = color, alpha = alpha, linewidth = linewidth,
-                 aes(fips = fips))
-
-}
-
-
-
-us_census %>% 
-  ggplot() + 
-  coord_sf() +
-  aes(fips = FIPS) +
-  stamp_sf_county_state(state = "colorado") +
-  geom_sf_county_state(state = "colorado") +
-  stamp_sf_county_state_county(alpha = 0, color = "green") +
-  aes(fill = mean_work_travel) + 
-  scale_fill_viridis_c(option = "magma")
-
-us_census %>% 
-  ggplot() + 
-  coord_sf() +
-  aes(fips = FIPS) +
-  geom_sf_county_state(state = "new york") +
-  stamp_sf_county_state_county(alpha = 0, color = "green", state = "new york", county = "westchester") +
-  aes(fill = mean_work_travel) + 
-  scale_fill_viridis_c(option = "magma")
-
-
-us_census %>% 
-  ggplot() + 
-  coord_sf() +
-  aes(fips = FIPS) +
-  stamp_sf_county_usa() +
-  geom_sf_county_state(state = "new york") +
-  aes(fill = mean_work_travel) + 
-  scale_fill_viridis_c(option = "magma")
-```
-
-# Unify with Illinois
-
-let's just make the original functions more flexible, and test with illinois
-
-```{r}
-
-
-compute_county <- function(data, scales, state = NULL, county = NULL){
- 
-
-  if(!is.null(state)){
-    
-  state %>% tolower() -> state
-    
-  reference_fips_full %>% 
-                   mutate(name_2 = tolower(name_2)) %>% 
-                   filter(name_2 %in% state) ->
-  reference_fips_full
-  }
-    
-  if(!is.null(county)){
-    
-    county %>% tolower() -> county
-      
-    reference_fips_full %>% 
-                   mutate(name = tolower(name)) %>% 
-                   filter(name %in% county) ->
-    reference_fips_full
-      
-    }
-    
-    reference_fips_full %>% 
-    select(fips, geometry, xmin, xmax, ymin, ymax) ->
-reference_fips_state
-  
-  data %>% 
-    inner_join(reference_fips_state) %>% 
-    mutate(group = -1)
-
-}
-
-
-StatCounty <- ggplot2::ggproto(`_class` = "StatCounty",
-                                  `_inherit` = ggplot2::Stat,
-                                  # required_aes = c("fips"), #breaks when required!?
-                                  # setup_data = my_setup_data,
-                                  compute_panel = compute_county,
-                                  default_aes = aes(geometry = after_stat(geometry))
-                                  )
-
-
-
-geom_sf_county <- function(
-  mapping = NULL,
-  data = NULL,
-  position = "identity",
-  na.rm = FALSE,
-  show.legend = NA,
-  inherit.aes = TRUE, ...) {
-  ggplot2::layer(
-    stat = StatCounty,  # proto object from step 2
-    geom = ggplot2::GeomSf,  # inherit other behavior
-    data = data,
-    mapping = mapping,
-    position = position,
-    show.legend = show.legend,
-    inherit.aes = inherit.aes,
-    params = list(na.rm = na.rm, ...)
-  )
-}
-
-
-us_census %>% 
-  ggplot() + 
-  coord_sf() +
-  aes(fips = FIPS) +
+  aes(fips = fips) +
+  aes(fill = mean_work_travel) +
   geom_sf_county(state = "Illinois") +
-  geom_sf_county(state = "Illinois", 
-                 county = c("Cook", "Champaign"), 
-                 color = "red", linewidth = 1) +
-  aes(fill = mean_work_travel) + 
   scale_fill_viridis_c(option = "magma")
 
-last_plot() + 
+last_plot() +
+  geom_sf_county(state = "Illinois",
+                 county = c("Cook", "Champaign"),
+                 color = "red", linewidth = 1)
+
+# aesthetic mapping quick change
+last_plot() +
   aes(fill = per_capita_income) + 
   scale_fill_viridis_c()
-
 ```
 
-# Thank you Illinois... more 'tests'
+
+
+
 
 ```{r}
-
 us_census %>% 
-  ggplot() + 
+ggplot() +
   coord_sf() +
-  aes(fips = FIPS) +
-  geom_sf_county(state = "new york") +
-  geom_sf_county(state = "new york", 
-                 county = c("Putnam", "Dutchess", "Westchester", 
-                            "Orange", "New Paltz", "Ulster"), 
-                 color = "red", linewidth = 1) +
-  aes(fill = mean_work_travel) + 
+  aes(fips = fips) +
+  aes(fill = mean_work_travel) +
+  geom_sf_county(state = "Texas") +
   scale_fill_viridis_c(option = "magma")
 
 
 us_census %>% 
-  ggplot() + 
+ggplot() +
   coord_sf() +
-  aes(fips = FIPS) +
-  geom_sf_county(state = c("California", "Oregon", 
-                           "Washington", "Nevada", 
-                           "Colorado", "Utah", "Arizona",
-                           "New Mexico", "Texas", "New York", "Illinois")) +
-  aes(fill = foreign_spoken_at_home) + 
-  scale_fill_viridis_c()
-  
+  aes(fips = fips) +
+  aes(fill = mean_work_travel) +
+  geom_sf_county(state = "Iowa") +
+  scale_fill_viridis_c(option = "magma")
 
+us_census %>% 
+ggplot() +
+  coord_sf() +
+  aes(fips = fips) +
+  aes(fill = mean_work_travel) +
+  geom_sf_county(state = "New York") +
+  scale_fill_viridis_c(option = "magma") +
+  geom_sf_county(state = "New York",
+                 county = c("Orange", 
+                            "Putnam", 
+                            "Westchester"), aes(color = name),
+                 color = "red", linewidth = 1)
 
-
+ggplot2::geom_sf_text
 ```
 
 
-
----
-
-# Notes
-
-1. Inner join only seems to work in the compute panel move. 
-- This may leave holes in your map.
-- stamping down full map first may be a solution.
-2. Finding GeomSf aesthetics behavior a bit surprising.  
-
-- setting a required aesthetic seems to fail; like I'd require 'fips' as an aesthetic, 
-- it seems to look for any declared aesthetic... I have to experience this problem again. I can't articulate it.  Now feels fuzzy.  Solution can be nulling it out.   Well, it was a surprise when ggplot2 was complaining about fips column not being found when using normal geom_sf() because it certainly never used the fips 'aesthetic' before.
-
-3. I've found that using sf classically, produces xmin xmax ymin and ymax columns for the layer data.  They are required for my sf to render.  
-
-4. Wishlist: Would be nice to have this plotly ready. I.e. convert using ggplotly and mouse over to see choropleth values and state and county names.  
+ 
