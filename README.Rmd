@@ -15,13 +15,27 @@ knitr::opts_chunk$set(
 
 # ggfips
 
+```{r}
+# readxl::read_xlsx("data-raw/incompleteCounty.xlsx") %>% 
+#   mutate(fips = as.character(fips)) %>%
+#   mutate(fips = str_pad(fips, width = 5, side = "left", "0")) %>%
+#   mutate(fips = as.factor(fips)) %>%
+#   # slice(1:100) %>%
+#   ggplot() +
+#   coord_sf() +
+#   aes(fips = fips) +
+#   geom_sf_county()
+# 
+# ggplot2::layer_data(last_plot())
 
+```
 
 
 ```{r}
 library(tidyverse)
 library(ggfips)
 
+reference_fips
 
 us_census %>% 
 ggplot() +
@@ -89,8 +103,6 @@ ggplot() +
                             "Putnam", 
                             "Westchester"), aes(color = name),
                  color = "red", linewidth = 1)
-
-ggplot2::geom_sf_text
 ```
 
 

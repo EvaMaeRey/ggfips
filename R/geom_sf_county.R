@@ -61,7 +61,7 @@ StatCounty <- ggplot2::ggproto(`_class` = "StatCounty",
 #' ggplot() +
 #'   coord_sf() +
 #'   aes(fips = fips) +
-#'   geom_sf_county(state = "Illinois") +
+#'   geom_sf_county(fill = "blue") +
 #'   geom_sf_county(state = "Illinois",
 #'                  county = c("Cook", "Champaign"),
 #'                  color = "red", linewidth = 1) +
