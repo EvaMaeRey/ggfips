@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 
 # ggfips
 
-```{r}
+```{r, include = F}
 # readxl::read_xlsx("data-raw/incompleteCounty.xlsx") %>% 
 #   mutate(fips = as.character(fips)) %>%
 #   mutate(fips = str_pad(fips, width = 5, side = "left", "0")) %>%
@@ -31,11 +31,9 @@ knitr::opts_chunk$set(
 ```
 
 
-```{r}
+```{r, eval = T}
 library(tidyverse)
 library(ggfips)
-
-reference_fips
 
 us_census %>% 
 ggplot() +
@@ -49,7 +47,7 @@ ggplot() +
 
 # spotlighting
 
-```{r}
+```{r, eval = T}
 us_census %>% 
 ggplot() +
   coord_sf() +
@@ -73,7 +71,7 @@ last_plot() +
 
 
 
-```{r}
+```{r, eval = T}
 us_census %>% 
 ggplot() +
   coord_sf() +
